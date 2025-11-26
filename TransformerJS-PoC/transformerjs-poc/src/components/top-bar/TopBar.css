@@ -1,0 +1,29 @@
+.top-bar {
+  height: 10vh;
+  background-color: #2a2a2a; 
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  padding: 0 2rem;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.top-bar-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.top-bar-logo {
+  height: 40px;
+  width: 40px;
+  object-fit: contain;
+}
+
+.top-bar-title {
+  color: #ffffff;
+  font-size: 1.5rem;
+  margin: 0;
+}

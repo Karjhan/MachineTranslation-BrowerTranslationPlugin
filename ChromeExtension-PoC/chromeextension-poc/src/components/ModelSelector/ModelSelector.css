@@ -1,0 +1,16 @@
+.model-selector {
+  margin-bottom: 0.2rem;
+  background-color: #ffffff;
+  padding: 0.5rem !important;
+  border: none !important;
+}
+
+.model-dropdown {
+  min-width: 200px;
+  height: 40px;
+  font-weight: 500;
+}
+
+.translate-button {
+  height: 40px;
+}
