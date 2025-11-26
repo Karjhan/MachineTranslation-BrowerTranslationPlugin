@@ -1,0 +1,35 @@
+.app-container {
+  width: 100%;
+  background-color: #ffffff;
+  border-radius: 8px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.ai-logo {
+  width: 100%;
+  max-height: 60px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.title {
+  font-weight: 600;
+  color: #343a40;
+  font-size: 1.25rem;
+  margin: 0;
+  text-align: right;
+  margin-right: 0.5rem;
+}
+
+.first-row{
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  margin-bottom: 0.2rem;
+  margin-top: 0.2rem;
+}
+
+#root {
+  width: 100%;
+  background-color: white;
+}
