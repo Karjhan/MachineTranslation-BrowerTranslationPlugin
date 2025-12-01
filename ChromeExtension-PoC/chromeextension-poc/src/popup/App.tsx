@@ -11,47 +11,81 @@ const App: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState(MODELS[0]);
   const [isTranslating, setIsTranslating] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
-  const controller = new TransformerController();
+  const controllerRef = React.useRef<TransformerController | null>(null);
+  if (!controllerRef.current) {
+    controllerRef.current = new TransformerController();
+  }
+  const controller = controllerRef.current;
 
   const handleModelChange = (model: string) => {
     setSelectedModel(model);
   };
 
-  async function getPageTextFromActiveTab(): Promise<string> {
+  async function getVisibleTextNodesFromActiveTab(): Promise<string[]> {
     return new Promise((resolve, reject) => {
       getActiveTabId().then((tabId) => {
         chrome.scripting.executeScript(
           {
             target: { tabId },
-            func: () => document.body.innerText,
+            func: () => {
+              const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+                acceptNode: (node) => {
+                  if (!node.textContent?.trim()) return NodeFilter.FILTER_REJECT;
+                  if (node.parentElement && ['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(node.parentElement.tagName)) {
+                    return NodeFilter.FILTER_REJECT;
+                  }
+                  return NodeFilter.FILTER_ACCEPT;
+                }
+              });
+
+              const texts: string[] = [];
+              while (walker.nextNode()) {
+                texts.push(walker.currentNode!.textContent!);
+              }
+              return texts;
+            }
           },
-          (injectionResults) => {
-            if (chrome.runtime.lastError) {
-              return reject(chrome.runtime.lastError.message);
-            }
-            if (!injectionResults || injectionResults.length === 0) {
-              return reject('No result from script injection');
-            }
-
-            const result = injectionResults[0].result;
-            if (typeof result !== 'string') {
-              return reject('Script returned non-string result');
-            }
-
-            resolve(result);
+          (results) => {
+            if (chrome.runtime.lastError) return reject(chrome.runtime.lastError.message);
+            if (!results || results.length === 0) return reject('No results from page script');
+            resolve(results[0].result!);
           }
         );
       }).catch(reject);
     });
   }
 
-  
   async function getActiveTabId(): Promise<number> {
     return new Promise((resolve, reject) => {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs.length === 0) return reject('No active tab found');
         resolve(tabs[0].id!);
       });
+    });
+  }
+
+  async function replaceVisibleTextNodes(tabId: number, translations: string[]) {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (translatedTexts: string[]) => {
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+          acceptNode: (node) => {
+            if (!node.textContent?.trim()) return NodeFilter.FILTER_REJECT;
+            if (node.parentElement && ['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(node.parentElement.tagName)) {
+              return NodeFilter.FILTER_REJECT;
+            }
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        });
+
+        let i = 0;
+        while (walker.nextNode()) {
+          if (i < translatedTexts.length) {
+            walker.currentNode!.textContent = translatedTexts[i++];
+          }
+        }
+      },
+      args: [translations],
     });
   }
 
@@ -65,23 +99,24 @@ const App: React.FC = () => {
 
     await controller.initialize(selectedModel, 'translation');
 
-    const pageText = await getPageTextFromActiveTab();
-    const chunks = chunkText(pageText, 400);
-
-    console.log('[App] Chunks to translate:', chunks);
-
-
     try {
-      const results = await controller.translate(chunks, 'eng_Latn', 'fra_Latn');
-      console.log('[App] Translation results:', results);
-      const fullTranslation = results.join(' ');
-      await chrome.scripting.executeScript({
-        target: { tabId: await getActiveTabId() },
-        func: (translatedText: string) => {
-          document.body.innerText = translatedText;
-        },
-        args: [fullTranslation]
-      });
+      const tabId = await getActiveTabId();
+      const pageTexts = await getVisibleTextNodesFromActiveTab();
+
+      const chunks = pageTexts.map((text) => chunkText(text, 400)).flat();
+
+      const translatedChunks = await controller.translate(chunks, 'eng_Latn', 'fra_Latn');
+
+      const translatedPerText = [];
+      let offset = 0;
+      for (const text of pageTexts) {
+        const words = text.split(/\s+/).length;
+        const numChunks = Math.ceil(words / 400);
+        translatedPerText.push(translatedChunks.slice(offset, offset + numChunks).join(' '));
+        offset += numChunks;
+      }
+
+      await replaceVisibleTextNodes(tabId, translatedPerText);
     } catch (err) {
       console.error('[Translation Error]', err);
     }

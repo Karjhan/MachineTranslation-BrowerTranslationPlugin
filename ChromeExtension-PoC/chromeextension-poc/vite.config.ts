@@ -14,12 +14,16 @@ function copyTransformersAssetsPlugin(): Plugin {
     apply: 'build',
     async closeBundle() {
       const root = process.cwd();
-      const srcDir = path.resolve(root, 'node_modules/@xenova/transformers/dist');
+      const srcDir = path.resolve(root, 'node_modules/@huggingface/transformers/dist');
       const destDir = path.resolve(root, 'dist/transformers');
       await fs.mkdir(destDir, { recursive: true });
       const files = [
         'ort-wasm-simd-threaded.jsep.mjs',
-        'ort-wasm-simd-threaded.jsep.wasm'
+        'ort-wasm-simd-threaded.jsep.wasm',
+        'ort-wasm-simd-threaded.wasm',
+        'ort-wasm-simd.wasm',
+        'ort-wasm-threaded.wasm',
+        'ort-wasm.wasm',
       ];
       for (const file of files) {
         const src = path.join(srcDir, file);

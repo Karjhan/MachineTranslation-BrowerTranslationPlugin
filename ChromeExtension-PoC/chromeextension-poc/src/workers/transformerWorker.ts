@@ -1,6 +1,8 @@
-import { pipeline, env } from '@xenova/transformers';
+import { env, pipeline } from "@huggingface/transformers";
+
 
 console.log('[Worker] Initializing transformerWorker...');
+console.log('navigator.gpu in worker?', 'gpu' in navigator ? 'yes' : 'no');
 
 if (env?.backends?.onnx?.wasm) {
   env.backends.onnx.wasm.numThreads = 1;
@@ -14,6 +16,7 @@ if (env?.backends?.onnx?.wasm) {
 }
 
 env.allowLocalModels = true;
+env.allowRemoteModels = false;
 env.useBrowserCache = true;
 env.localModelPath = '/models';
 
@@ -35,10 +38,23 @@ onmessage = async (e) => {
       }
 
       translator = await pipeline(task, model, {
-        quantized: true,
-        progress_callback: (file: any, progress: any) => {
-          postMessage({ type: 'progress', payload: { file, progress } });
-          console.log('[Worker] Downloading:', file?.url || file, `${Math.round((progress ?? 0) * 100)}%`);
+        device: 'webgpu',
+        dtype: { encoder_model: 'q4', decoder_model_merged: 'q4' },
+        progress_callback: (p: any) => {
+          const percentage =
+            p.loaded && p.total ? Math.round((p.loaded / p.total) * 100) : 0;
+
+          postMessage({
+            type: 'progress',
+            payload: {
+              file: p.name || '',
+              progress: p.loaded && p.total ? p.loaded / p.total : 0,
+            },
+          });
+
+          console.log(
+            `[Worker] Downloading: ${p.name} ${percentage}%`
+          );
         }
       });
 
