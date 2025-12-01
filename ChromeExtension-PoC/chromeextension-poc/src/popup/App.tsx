@@ -17,6 +17,44 @@ const App: React.FC = () => {
     setSelectedModel(model);
   };
 
+  async function getPageTextFromActiveTab(): Promise<string> {
+    return new Promise((resolve, reject) => {
+      getActiveTabId().then((tabId) => {
+        chrome.scripting.executeScript(
+          {
+            target: { tabId },
+            func: () => document.body.innerText,
+          },
+          (injectionResults) => {
+            if (chrome.runtime.lastError) {
+              return reject(chrome.runtime.lastError.message);
+            }
+            if (!injectionResults || injectionResults.length === 0) {
+              return reject('No result from script injection');
+            }
+
+            const result = injectionResults[0].result;
+            if (typeof result !== 'string') {
+              return reject('Script returned non-string result');
+            }
+
+            resolve(result);
+          }
+        );
+      }).catch(reject);
+    });
+  }
+
+  
+  async function getActiveTabId(): Promise<number> {
+    return new Promise((resolve, reject) => {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs.length === 0) return reject('No active tab found');
+        resolve(tabs[0].id!);
+      });
+    });
+  }
+
   const handleTranslate = async () => {
     setIsTranslating(true);
     setProgress({ current: 0, total: 0 });
@@ -25,15 +63,25 @@ const App: React.FC = () => {
       setProgress({ current, total });
     });
 
-    controller.initialize(selectedModel, 'translation');
+    await controller.initialize(selectedModel, 'translation');
 
-    const pageText = document.body.innerText;
+    const pageText = await getPageTextFromActiveTab();
     const chunks = chunkText(pageText, 400);
 
+    console.log('[App] Chunks to translate:', chunks);
+
+
     try {
-      const results = await controller.translate(chunks, 'auto', 'eng_Latn');
+      const results = await controller.translate(chunks, 'eng_Latn', 'fra_Latn');
+      console.log('[App] Translation results:', results);
       const fullTranslation = results.join(' ');
-      document.body.innerText = fullTranslation;
+      await chrome.scripting.executeScript({
+        target: { tabId: await getActiveTabId() },
+        func: (translatedText: string) => {
+          document.body.innerText = translatedText;
+        },
+        args: [fullTranslation]
+      });
     } catch (err) {
       console.error('[Translation Error]', err);
     }
@@ -43,7 +91,7 @@ const App: React.FC = () => {
 
   return (
     <Container className="app-container">
-      <Row className="first-row">
+      <Row className="first-row mt-2">
         <Col xs={4}>
           <img src="/AI-GIF.gif" alt="AI" className="ai-logo" />
         </Col>

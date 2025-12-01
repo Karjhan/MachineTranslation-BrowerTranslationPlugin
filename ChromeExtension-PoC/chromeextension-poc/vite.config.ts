@@ -5,6 +5,34 @@ import { defineConfig } from 'vite'
 import zip from 'vite-plugin-zip-pack'
 import manifest from './manifest.config.js'
 import { name, version } from './package.json'
+import fs from 'fs/promises';
+import type { Plugin } from 'vite';
+
+function copyTransformersAssetsPlugin(): Plugin {
+  return {
+    name: 'copy-transformers-assets',
+    apply: 'build',
+    async closeBundle() {
+      const root = process.cwd();
+      const srcDir = path.resolve(root, 'node_modules/@xenova/transformers/dist');
+      const destDir = path.resolve(root, 'dist/transformers');
+      await fs.mkdir(destDir, { recursive: true });
+      const files = [
+        'ort-wasm-simd-threaded.jsep.mjs',
+        'ort-wasm-simd-threaded.jsep.wasm'
+      ];
+      for (const file of files) {
+        const src = path.join(srcDir, file);
+        const dest = path.join(destDir, file);
+        try {
+          await fs.copyFile(src, dest);
+        } catch (err) {
+          console.warn(`Could not copy ${file}:`, err);
+        }
+      }
+    }
+  };
+}
 
 export default defineConfig({
   resolve: {
@@ -16,6 +44,7 @@ export default defineConfig({
     react(),
     crx({ manifest }),
     zip({ outDir: 'release', outFileName: `crx-${name}-${version}.zip` }),
+    copyTransformersAssetsPlugin()
   ],
   server: {
     cors: {

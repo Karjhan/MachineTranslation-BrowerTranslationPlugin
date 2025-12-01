@@ -30,5 +30,16 @@ export default defineManifest({
       js: ['src/content/main.tsx'],
       run_at: 'document_idle'
     }
+  ],
+  web_accessible_resources: [
+    {
+      resources: [
+        'models/**/*',
+        'transformers/*.wasm',
+        'transformers/*.mjs'
+      ],
+      matches: ['<all_urls>'],
+      use_dynamic_url: false
+    }
   ]
 })
