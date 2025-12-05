@@ -5,7 +5,9 @@ console.log('[Worker] Initializing transformerWorker...');
 console.log('navigator.gpu in worker?', 'gpu' in navigator ? 'yes' : 'no');
 
 if (env?.backends?.onnx?.wasm) {
-  env.backends.onnx.wasm.numThreads = 1;
+  env.backends.onnx.wasm.numThreads = navigator.hardwareConcurrency
+  ? Math.max(1, Math.min(4, navigator.hardwareConcurrency - 1))
+  : 2;
   const bundledPath = typeof chrome !== 'undefined' && chrome.runtime?.getURL
     ? chrome.runtime.getURL('transformers/')
     : new URL('../transformers/', self.location.href).toString();
@@ -17,7 +19,7 @@ if (env?.backends?.onnx?.wasm) {
 
 env.allowLocalModels = true;
 env.allowRemoteModels = false;
-env.useBrowserCache = true;
+env.useBrowserCache = false;
 env.localModelPath = '/models';
 
 console.log('[Worker] env configuration completed.');
@@ -38,8 +40,6 @@ onmessage = async (e) => {
       }
 
       translator = await pipeline(task, model, {
-        device: 'webgpu',
-        dtype: { encoder_model: 'q4', decoder_model_merged: 'q4' },
         progress_callback: (p: any) => {
           const percentage =
             p.loaded && p.total ? Math.round((p.loaded / p.total) * 100) : 0;
