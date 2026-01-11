@@ -36,7 +36,8 @@ export default defineManifest({
       resources: [
         'models/**/*',
         'transformers/*.wasm',
-        'transformers/*.mjs'
+        'transformers/*.mjs',
+        'transformers/*'
       ],
       matches: ['<all_urls>'],
       use_dynamic_url: false

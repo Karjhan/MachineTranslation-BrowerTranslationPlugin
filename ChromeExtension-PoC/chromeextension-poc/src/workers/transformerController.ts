@@ -25,7 +25,8 @@ export class TransformerController {
 
   initialize(model: string, task: string): Promise<void> {
     const wasmPath = chrome.runtime.getURL('transformers/');
-    console.log('[Controller] Sending init to worker:', { model, task, wasmPath });
+    const modelPath = chrome.runtime.getURL('models/');
+    console.log('[Controller] Sending init to worker:', { model, task, wasmPath, modelPath });
 
     return new Promise((resolve, reject) => {
       this.worker.onmessage = (e) => {
@@ -42,7 +43,7 @@ export class TransformerController {
 
       this.worker.postMessage({
         type: 'init',
-        payload: { model, task, wasmPath }
+        payload: { model, task, wasmPath, modelPath }
       });
     });
   }

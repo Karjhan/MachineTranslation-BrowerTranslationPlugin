@@ -5,7 +5,22 @@ import './App.css';
 import { ProgressBar } from '@/components/ProgressBar/ProgressBar';
 import ModelSelector from '@/components/ModelSelector/ModelSelector';
 
-const MODELS = ['Xenova/nllb-200-distilled-600M'];
+const MODELS = [
+  'Xenova/nllb-200-distilled-600M',
+  'aronlp/NLLB-rup-ron-eng-ct2',
+];
+
+const MODEL_LANG_CONFIG: Record<string, { src: string; tgt: string }> = {
+  'Xenova/nllb-200-distilled-600M': {
+    src: 'eng_Latn',
+    tgt: 'fra_Latn',
+  },
+  'aronlp/NLLB-rup-ron-eng-ct2': {
+    src: 'eng_Latn',   
+    tgt: 'rup_Latn',   
+  }
+};
+
 
 const App: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState(MODELS[0]);
@@ -101,11 +116,13 @@ const App: React.FC = () => {
 
     try {
       const tabId = await getActiveTabId();
-      const pageTexts = await getVisibleTextNodesFromActiveTab();
+      const pageTexts = ["Hello world. This is a simple test sentence."];
+      const chunks = ["Hello world. This is a simple test sentence."];
 
-      const chunks = pageTexts.map((text) => chunkText(text, 400)).flat();
+      const { src, tgt } = MODEL_LANG_CONFIG[selectedModel];
 
-      const translatedChunks = await controller.translate(chunks, 'eng_Latn', 'fra_Latn');
+      const translatedChunks = await controller.translate(chunks, src, tgt);
+      console.log("TRANSLATED:", translatedChunks);
 
       const translatedPerText = [];
       let offset = 0;
