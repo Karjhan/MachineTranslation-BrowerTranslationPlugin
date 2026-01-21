@@ -58,14 +58,18 @@ cd ./ChromeExtension-PoC/chromeextension-poc
 ```sh
 npm install
 ```
-4. Run the following command to start the project which will build the `dist` folder:
+4. Create `models` directory under `public` and populate it with the 2 hardcoded options (have to download them):
+```sh
+mkdir -p public/models/aronlp/NLLB-rup-ron-eng-ct2 public/models/Xenova/nllb-200-distilled-600M
+```
+5. Run the following command to start the project which will build the `dist` folder:
 ```sh
 npm run dev
 ```
-5. Go into browser -> `Manage Extension` tab -> toggle `Developer Mode` if any. Example in Chrome:
+6. Go into browser -> `Manage Extension` tab -> toggle `Developer Mode` if any. Example in Chrome:
 ![SS-6](./Screenshots/SS6.png)
-6. Click `Load unpacked` and select the `dist` folder in the project when window popup
-7. Now you can test the plugin
+7. Click `Load unpacked` and select the `dist` folder in the project when window popup
+8. Now you can test the plugin
 
 ## Visuals
 ### Original page
@@ -78,5 +82,7 @@ npm run dev
 ## Additional Notes
 - For now, I had to hardcode the `target` and `source` languages, but in the future, this can be automated.
 - If you want to add more models (provided they are compatible with Transformer.JS and are small enough), add them under `./public/models` and keep the original folder structure of the model
+- If you want to deploy to chrome web store, just zip the `dist` folder
 - It's super slow for now, unfortunately. Even batching the chunks is not increasing the performance by too much and webgpu is not an option for all + depends on quantization.
+
 ![SS-1](./Screenshots/SS1.png)
