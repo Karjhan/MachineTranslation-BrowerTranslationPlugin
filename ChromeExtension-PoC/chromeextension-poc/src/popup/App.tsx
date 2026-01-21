@@ -5,35 +5,67 @@ import './App.css';
 import { ProgressBar } from '@/components/ProgressBar/ProgressBar';
 import ModelSelector from '@/components/ModelSelector/ModelSelector';
 
+const MAX_WORDS_PER_CHUNK = 400;
+
 const MODELS = [
   'Xenova/nllb-200-distilled-600M',
   'aronlp/NLLB-rup-ron-eng-ct2',
 ];
 
-const MODEL_LANG_CONFIG: Record<string, { src: string; tgt: string }> = {
-  'Xenova/nllb-200-distilled-600M': {
-    src: 'eng_Latn',
-    tgt: 'fra_Latn',
-  },
+type LangOption = { label: string; value: string };
+
+const MODEL_LANG_OPTIONS: Record<string, { src: LangOption[]; tgt: LangOption[] }> = {
   'aronlp/NLLB-rup-ron-eng-ct2': {
-    src: 'eng_Latn',   
-    tgt: 'rup_Latn',   
-  }
+    src: [
+      { label: 'English', value: 'eng_Latn' },
+      { label: 'Romanian', value: 'ron_Latn' },
+      { label: 'Aromanian', value: 'rup_Latn' },
+    ],
+    tgt: [
+      { label: 'English', value: 'eng_Latn' },
+      { label: 'Romanian', value: 'ron_Latn' },
+      { label: 'Aromanian', value: 'rup_Latn' },
+    ],
+  },
+  'Xenova/nllb-200-distilled-600M': {
+    src: [
+      { label: 'English', value: 'eng_Latn' },
+      { label: 'French', value: 'fra_Latn' },
+      { label: 'Italian', value: 'ita_Latn' },
+      { label: 'German', value: 'deu_Latn' },
+      { label: 'Spanish', value: 'spa_Latn' },
+    ],
+    tgt: [
+      { label: 'English', value: 'eng_Latn' },
+      { label: 'French', value: 'fra_Latn' },
+      { label: 'Italian', value: 'ita_Latn' },
+      { label: 'German', value: 'deu_Latn' },
+      { label: 'Spanish', value: 'spa_Latn' },
+    ],
+  },
 };
 
+const DEFAULT_LANGS: Record<string, { src: string; tgt: string }> = {
+  'aronlp/NLLB-rup-ron-eng-ct2': { src: 'eng_Latn', tgt: 'rup_Latn' },
+  'Xenova/nllb-200-distilled-600M': { src: 'eng_Latn', tgt: 'fra_Latn' },
+};
 
 const App: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState(MODELS[0]);
   const [isTranslating, setIsTranslating] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [srcLang, setSrcLang] = useState(DEFAULT_LANGS[MODELS[0]].src);
+  const [tgtLang, setTgtLang] = useState(DEFAULT_LANGS[MODELS[0]].tgt);
+
   const controllerRef = React.useRef<TransformerController | null>(null);
-  if (!controllerRef.current) {
-    controllerRef.current = new TransformerController();
-  }
+  if (!controllerRef.current) controllerRef.current = new TransformerController();
   const controller = controllerRef.current;
 
   const handleModelChange = (model: string) => {
     setSelectedModel(model);
+    const def = DEFAULT_LANGS[model] ?? { src: 'eng_Latn', tgt: 'fra_Latn' };
+    setSrcLang(def.src);
+    setTgtLang(def.tgt);
   };
 
   async function getVisibleTextNodesFromActiveTab(): Promise<string[]> {
@@ -104,6 +136,15 @@ const App: React.FC = () => {
     });
   }
 
+  function chunkText(text: string, maxWords: number): string[] {
+    const words = text.split(/\s+/);
+    const chunks: string[] = [];
+    for (let i = 0; i < words.length; i += maxWords) {
+      chunks.push(words.slice(i, i + maxWords).join(' '));
+    }
+    return chunks;
+  }
+
   const handleTranslate = async () => {
     setIsTranslating(true);
     setProgress({ current: 0, total: 0 });
@@ -112,33 +153,48 @@ const App: React.FC = () => {
       setProgress({ current, total });
     });
 
-    await controller.initialize(selectedModel, 'translation');
+    const task =
+      selectedModel === 'Xenova/nllb-200-distilled-600M'
+        ? 'translation'
+        : 'text2text-generation';
 
     try {
+      await controller.initialize(selectedModel, task);
+
       const tabId = await getActiveTabId();
-      const pageTexts = ["Hello world. This is a simple test sentence."];
-      const chunks = ["Hello world. This is a simple test sentence."];
 
-      const { src, tgt } = MODEL_LANG_CONFIG[selectedModel];
+      const pageTexts = await getVisibleTextNodesFromActiveTab();
 
-      const translatedChunks = await controller.translate(chunks, src, tgt);
-      console.log("TRANSLATED:", translatedChunks);
+      const chunks: string[] = [];
+      const chunkCountsPerText: number[] = [];
 
-      const translatedPerText = [];
-      let offset = 0;
       for (const text of pageTexts) {
-        const words = text.split(/\s+/).length;
-        const numChunks = Math.ceil(words / 400);
-        translatedPerText.push(translatedChunks.slice(offset, offset + numChunks).join(' '));
-        offset += numChunks;
+        const textChunks = chunkText(text, MAX_WORDS_PER_CHUNK);
+        chunkCountsPerText.push(textChunks.length);
+        chunks.push(...textChunks);
+      }
+
+      if (srcLang === tgtLang) {
+        console.warn('Source and target language are the same. Skipping translation.');
+        await replaceVisibleTextNodes(tabId, pageTexts);
+        return;
+      }
+      const translatedChunks = await controller.translate(chunks, srcLang, tgtLang);
+
+      const translatedPerText: string[] = [];
+      let offset = 0;
+
+      for (const count of chunkCountsPerText) {
+        translatedPerText.push(translatedChunks.slice(offset, offset + count).join(' '));
+        offset += count;
       }
 
       await replaceVisibleTextNodes(tabId, translatedPerText);
     } catch (err) {
       console.error('[Translation Error]', err);
+    } finally {
+      setIsTranslating(false);
     }
-
-    setIsTranslating(false);
   };
 
   return (
@@ -160,6 +216,11 @@ const App: React.FC = () => {
             onModelChange={handleModelChange}
             onTranslate={handleTranslate}
             loading={isTranslating}
+            srcLang={srcLang}
+            tgtLang={tgtLang}
+            onSrcLangChange={setSrcLang}
+            onTgtLangChange={setTgtLang}
+            langOptions={MODEL_LANG_OPTIONS[selectedModel]}
           />
         </Col>
       </Row>
@@ -174,14 +235,5 @@ const App: React.FC = () => {
     </Container>
   );
 };
-
-function chunkText(text: string, maxWords: number): string[] {
-  const words = text.split(/\s+/);
-  const chunks: string[] = [];
-  for (let i = 0; i < words.length; i += maxWords) {
-    chunks.push(words.slice(i, i + maxWords).join(' '));
-  }
-  return chunks;
-}
 
 export default App;
